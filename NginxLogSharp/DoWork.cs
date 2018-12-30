@@ -15,7 +15,7 @@ namespace NginxLogSharp
 {
     class DoWork
     {
-        
+
         public DoWork()
         {
             string connString = GetSqlConnString();
@@ -26,6 +26,7 @@ namespace NginxLogSharp
                 if (connection.State == ConnectionState.Closed) connection.Open();
 
                 //当前目录下
+//                string path = @"C:\Users\Administrator\Desktop\Debug\nginx-default.access.log";
                 string path = System.IO.Directory.GetCurrentDirectory() + "\\nginx-default.access.log";
                 Console.WriteLine(path);
                 if (!File.Exists(path))
@@ -39,9 +40,12 @@ namespace NginxLogSharp
                 StreamReader sr = new StreamReader(path, Encoding.Default);  //path为文件路径
                 String line;
                 int iCount = 0;
+                int iPageSize = 1000000;
+                int iPageIndex =0;
                 while ((line = sr.ReadLine()) != null)//按行读取 line为每行的数据
                 {
                     iCount++;
+                    
                     //  Console.WriteLine(iCount + ":" + line);
                     string[] lineConArr = line.Split('"');
                     if (lineConArr.Length > 0)
@@ -62,9 +66,12 @@ namespace NginxLogSharp
                         if (!string.IsNullOrWhiteSpace(ipAndTime))
                         {
                             cLogIp = ipAndTime.Substring(0, ipAndTime.IndexOf("-", StringComparison.Ordinal));
+                            if (cLogIp.Length > 50) cLogIp = cLogIp.Substring(0, 50);
                             string dateTime = ipAndTime.Substring(ipAndTime.IndexOf("[", StringComparison.Ordinal) + 1, ipAndTime.Length - ipAndTime.IndexOf(":", StringComparison.Ordinal) + 3);
                             cLogDate = Convert.ToDateTime(dateTime.Substring(0, dateTime.IndexOf(":", StringComparison.Ordinal))).ToString("yyyy-MM-d");
                             cLogTime = dateTime.Substring(dateTime.IndexOf(":", StringComparison.Ordinal) + 1, 8);
+                            if (cLogDate.Length > 50) cLogDate = cLogDate.Substring(0, 50);
+                            if (cLogTime.Length > 50) cLogTime = cLogTime.Substring(0, 50);
                         }
                         //GET /js/jsapi_ticket/shop_id/150.html HTTP/1.1
                         string methodAndFile = lineConArr[1];
@@ -74,8 +81,11 @@ namespace NginxLogSharp
                             if (methodAndFileArr.Length > 0)
                             {
                                 cLogMethod = methodAndFileArr[0];
-                                cLogFile = methodAndFileArr[1];
-                                cLogProtocol = methodAndFileArr[2];
+                                if (cLogMethod.Length > 50) cLogMethod = cLogMethod.Substring(0, 50);
+                                cLogFile = methodAndFileArr.Length > 1 ? methodAndFileArr[1] : "";
+                                if (cLogFile.Length > 1000) cLogFile = cLogFile.Substring(0, 999);
+                                cLogProtocol = methodAndFileArr.Length > 2 ? methodAndFileArr[2] : "";
+                                if (cLogProtocol.Length > 50) cLogProtocol = cLogProtocol.Substring(0, 50);
                             }
                         }
                         // 200 437 
@@ -86,14 +96,17 @@ namespace NginxLogSharp
                             if (statusAndLengthArr.Length > 0)
                             {
                                 cLogStatus = statusAndLengthArr[0];
+                                if (cLogStatus.Length > 50) cLogStatus = cLogStatus.Substring(0, 50);
                                 iLogLength = Convert.ToInt32(statusAndLengthArr[1]);
                             }
                         }
 
                         //https://www.baidu.com/x.html
                         cLogUrl = lineConArr[3];
+                        if (cLogUrl.Length > 1000) cLogUrl = cLogUrl.Substring(0, 999);
                         //Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.110 Safari/537.36
                         cLogUserAgent = lineConArr[5];
+                        if (cLogUserAgent.Length > 1000) cLogUserAgent = cLogUserAgent.Substring(0, 999);
 
                         NginxLog nginxLog = new NginxLog();
                         nginxLog.cLogIp = cLogIp;
@@ -113,16 +126,25 @@ namespace NginxLogSharp
                     }
 
                     // Console.ReadKey();
+                    if (iCount >= iPageSize)
+                    {
+                        iPageIndex++;
+                        if (lsNginxLog.Count > 0)
+                        {
+                            InsertBatch(connection, lsNginxLog);
+                            lsNginxLog.Clear();
+                            Console.WriteLine(iPageIndex + ":" + iPageSize * iPageIndex);
+                            iCount = 0;
+                        }
+                    };
                 }
 
                 if (lsNginxLog.Count > 0)
                 {
-                    //失败
-                    //var result=connection.Insert(lsNginxLog);
-                    //快速
                     InsertBatch(connection, lsNginxLog);
-                    //慢
-                    //   var result = connection.Execute("INSERT INTO NginxLog (cLogIp,cLogDate,cLogTime,cLogMethod,cLogFile,cLogProtocol,cLogStatus,iLogLength,cLogUrl,cLogUserAgent)VALUES (@cLogIp,@cLogDate,@cLogTime,@cLogMethod,@cLogFile,@cLogProtocol,@cLogStatus,@iLogLength,@cLogUrl,@cLogUserAgent)", lsNginxLog);
+                    lsNginxLog.Clear();
+                    iPageIndex++;
+                    Console.WriteLine(iPageIndex + ":" + iPageSize * iPageIndex);
                 }
             }
         }

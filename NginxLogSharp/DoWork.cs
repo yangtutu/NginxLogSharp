@@ -15,8 +15,7 @@ namespace NginxLogSharp
 {
     class DoWork
     {
-
-
+        
         public DoWork()
         {
             string connString = GetSqlConnString();
